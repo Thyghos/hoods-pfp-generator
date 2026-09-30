@@ -163,10 +163,12 @@ export default function App() {
     setSharing(true)
     setShareNote('')
     try {
-      const result = await sharePfp(canvas, target)
-      if (result === 'intent') {
-        setShareNote('PNG downloaded — attach it in the compose window.')
-      }
+      await sharePfp(canvas, target)
+      setShareNote(
+        target === 'x'
+          ? 'PNG downloaded — attach it to your X post.'
+          : 'PNG downloaded — attach it in Telegram.',
+      )
     } catch {
       setError('Share failed. Try Download PNG instead.')
     } finally {

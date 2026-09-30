@@ -114,41 +114,14 @@ export function telegramShareUrl(text = SHARE_TEXT, url = SHARE_SITE) {
 }
 
 export type ShareTarget = 'x' | 'telegram'
-export type ShareResult = 'native' | 'intent'
 
-export async function sharePfp(
-  canvas: HTMLCanvasElement,
-  target: ShareTarget,
-): Promise<ShareResult> {
+/** Downloads the PNG, then opens X compose or Telegram share with prefilled text. */
+export async function sharePfp(canvas: HTMLCanvasElement, target: ShareTarget) {
   const filename = 'hoods-pfp.png'
-  const file = await canvasToFile(canvas, filename)
-  const text = SHARE_TEXT
-  const url = SHARE_SITE
-
-  const canFileShare =
-    typeof navigator !== 'undefined' &&
-    typeof navigator.share === 'function' &&
-    typeof navigator.canShare === 'function' &&
-    navigator.canShare({ files: [file] })
-
-  if (canFileShare) {
-    try {
-      await navigator.share({
-        files: [file],
-        text: `${text} ${url}`,
-        title: 'HOODS PFP',
-      })
-      return 'native'
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return 'native'
-    }
-  }
-
   downloadCanvas(canvas, filename)
 
-  const intent = target === 'x' ? xIntentUrl(text, url) : telegramShareUrl(text, url)
+  const intent = target === 'x' ? xIntentUrl() : telegramShareUrl()
   window.open(intent, '_blank', 'noopener,noreferrer')
-  return 'intent'
 }
 
 export const CANVAS_SIZE = SIZE

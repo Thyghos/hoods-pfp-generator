@@ -18,7 +18,7 @@ npm run dev
 - Hood colors: brand green + black / forest / maroon / steel
 - Optional red feather + mascot void-eyes mode
 - Download a 1024×1024 PNG (no watermark)
-- Share to X / Telegram (downloads PNG + opens share; uses native share with the image when the browser supports it)
+- Share to X / Telegram (downloads PNG, then opens X compose or Telegram share)
 
 ## Notes
 

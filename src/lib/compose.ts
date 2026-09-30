@@ -115,6 +115,41 @@ export async function canvasToFile(
   return new File([blob], filename, { type: 'image/png' })
 }
 
+export type SaveResult = 'photos' | 'download'
+
+/**
+ * On phones (esp. iOS), open the share sheet so the user can tap Save Image → Camera Roll.
+ * On desktop, trigger a normal PNG download.
+ */
+export async function savePfp(
+  canvas: HTMLCanvasElement,
+  filename = 'hoods-pfp.png',
+): Promise<SaveResult> {
+  const file = await canvasToFile(canvas, filename)
+
+  const canShareFile =
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function' &&
+    typeof navigator.canShare === 'function' &&
+    navigator.canShare({ files: [file] })
+
+  if (canShareFile) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: 'HOODS PFP',
+      })
+      return 'photos'
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return 'photos'
+      // fall through to download
+    }
+  }
+
+  downloadCanvas(canvas, filename)
+  return 'download'
+}
+
 export const SHARE_SITE = 'https://www.rhoods.xyz/'
 export const SHARE_TEXT = 'I hooded up. $HOODS'
 

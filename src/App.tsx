@@ -3,7 +3,7 @@ import { BRAND, HOOD_COLORS, type HoodColor } from './lib/colors'
 import {
   composePfp,
   DEFAULT_TRANSFORM,
-  downloadCanvas,
+  savePfp,
   sharePfp,
   SIZE,
   type ShareTarget,
@@ -110,10 +110,10 @@ export default function App() {
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = 'high'
       ctx.drawImage(hood, 0, 0, SIZE, SIZE)
-      ctx.fillStyle = 'rgba(244,244,240,0.55)'
+      ctx.fillStyle = 'rgba(244,244,240,0.7)'
       ctx.font = `600 ${Math.round(SIZE * 0.035)}px Manrope, sans-serif`
       ctx.textAlign = 'center'
-      ctx.fillText('Drop your PFP here', SIZE / 2, SIZE * 0.39)
+      ctx.fillText('Tap to add your PFP', SIZE / 2, SIZE * 0.39)
       return
     }
 
@@ -277,11 +277,17 @@ export default function App() {
       })
     }
 
+    const onTapUpload = () => {
+      if (photoRef.current) return
+      fileRef.current?.click()
+    }
+
     el.addEventListener('pointerdown', onPointerDown)
     el.addEventListener('pointermove', onPointerMove)
     el.addEventListener('pointerup', endPointer)
     el.addEventListener('pointercancel', endPointer)
     el.addEventListener('wheel', onWheel, { passive: false })
+    el.addEventListener('click', onTapUpload)
 
     return () => {
       el.removeEventListener('pointerdown', onPointerDown)
@@ -289,6 +295,7 @@ export default function App() {
       el.removeEventListener('pointerup', endPointer)
       el.removeEventListener('pointercancel', endPointer)
       el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('click', onTapUpload)
     }
   }, [schedulePaint])
 
@@ -307,10 +314,25 @@ export default function App() {
     })
   }
 
-  const download = () => {
+  const openPhotoPicker = () => {
+    fileRef.current?.click()
+  }
+
+  const download = async () => {
     const canvas = buildCanvas()
     if (!canvas) return
-    downloadCanvas(canvas, `hoods-${color.id}-pfp.png`)
+    setSharing(true)
+    setShareNote('')
+    try {
+      const result = await savePfp(canvas, `hoods-${color.id}-pfp.png`)
+      if (result === 'photos') {
+        setShareNote('In the share sheet, tap Save Image to save to your camera roll.')
+      }
+    } catch {
+      setError('Could not save. Try again.')
+    } finally {
+      setSharing(false)
+    }
   }
 
   const share = async (target: ShareTarget) => {
@@ -336,10 +358,16 @@ export default function App() {
   const canExport = Boolean(photo) || voidFace
 
   const hint = useMemo(() => {
-    if (!photo) return 'Upload a Telegram, Discord, or X profile picture.'
+    if (!photo) return 'Tap the hood to open your camera roll.'
     if (voidFace) return 'Mascot mode — black void + glowing eyes.'
     return 'Drag with one finger · pinch to zoom · or use the sliders.'
   }, [photo, voidFace])
+
+  const saveLabel =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(hover: none) and (pointer: coarse)').matches
+      ? 'Save to Photos'
+      : 'Download PNG'
 
   return (
     <div className="page">
@@ -378,7 +406,7 @@ export default function App() {
               hidden
               onChange={(e) => onFile(e.target.files?.[0])}
             />
-            <button className="btn solid wide" type="button" onClick={() => fileRef.current?.click()}>
+            <button className="btn solid wide" type="button" onClick={openPhotoPicker}>
               {photo ? 'Change photo' : 'Upload PFP'}
             </button>
             {photoName ? <p className="file-name">{photoName}</p> : null}
@@ -464,8 +492,13 @@ export default function App() {
               >
                 Reset
               </button>
-              <button className="btn solid" type="button" onClick={download} disabled={!canExport}>
-                Download PNG
+              <button
+                className="btn solid"
+                type="button"
+                onClick={download}
+                disabled={!canExport || sharing}
+              >
+                {saveLabel}
               </button>
             </div>
 
@@ -496,7 +529,7 @@ export default function App() {
         <section className="stage-wrap">
           <div
             ref={stageRef}
-            className={`stage ${dragging ? 'dragging' : ''} ${photo && !voidFace ? 'editable' : ''}`}
+            className={`stage ${dragging ? 'dragging' : ''} ${photo && !voidFace ? 'editable' : ''} ${!photo ? 'uploadable' : ''}`}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault()

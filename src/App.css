@@ -304,6 +304,10 @@ input {
   cursor: grab;
 }
 
+.stage.uploadable {
+  cursor: pointer;
+}
+
 .stage.dragging {
   cursor: grabbing;
 }

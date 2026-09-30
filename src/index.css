@@ -1,0 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Manrope:wght@500;600;700;800&display=swap');
+
+:root {
+  font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.5;
+  font-weight: 500;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+}

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="fabric" x1="180" y1="80" x2="860" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8fd63a"/>
+      <stop offset="38%" stop-color="#70c810"/>
+      <stop offset="72%" stop-color="#5aa50d"/>
+      <stop offset="100%" stop-color="#3f7809"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="512" y1="40" x2="512" y2="980" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.28"/>
+    </linearGradient>
+    <linearGradient id="brim" x1="320" y1="220" x2="700" y2="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4f920c"/>
+      <stop offset="50%" stop-color="#70c810"/>
+      <stop offset="100%" stop-color="#2f5c07"/>
+    </linearGradient>
+    <radialGradient id="shadowIn" cx="50%" cy="48%" r="42%">
+      <stop offset="70%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.45"/>
+    </radialGradient>
+    <linearGradient id="feather" x1="690" y1="90" x2="860" y2="280" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff5a4a"/>
+      <stop offset="55%" stop-color="#e23b2c"/>
+      <stop offset="100%" stop-color="#9e1f16"/>
+    </linearGradient>
+  </defs>
+
+  <!-- shoulders / body -->
+  <path fill="url(#fabric)" d="M120 760C160 620 280 560 400 560H624C744 560 864 620 904 760C930 860 940 980 940 980H84C84 980 94 860 120 760Z"/>
+  <path fill="url(#fold)" d="M120 760C160 620 280 560 400 560H624C744 560 864 620 904 760C930 860 940 980 940 980H84C84 980 94 860 120 760Z"/>
+
+  <!-- kangaroo pocket hint -->
+  <path fill="#4a8a0c" opacity="0.55" d="M360 780C380 740 440 720 512 720C584 720 644 740 664 780C680 812 676 860 660 900H364C348 860 344 812 360 780Z"/>
+
+  <!-- hood outer shell -->
+  <path fill="url(#fabric)" d="M210 470C170 300 250 90 512 70C774 90 854 300 814 470C790 575 700 640 624 660C590 672 552 678 512 678C472 678 434 672 400 660C324 640 234 575 210 470Z"/>
+  <path fill="url(#fold)" d="M210 470C170 300 250 90 512 70C774 90 854 300 814 470C790 575 700 640 624 660C590 672 552 678 512 678C472 678 434 672 400 660C324 640 234 575 210 470Z"/>
+
+  <!-- hood center seam -->
+  <path stroke="#2f5c07" stroke-opacity="0.35" stroke-width="6" stroke-linecap="round" d="M512 92V300"/>
+
+  <!-- hood brim / opening rim (donut via evenodd) -->
+  <path fill="url(#brim)" fill-rule="evenodd" d="
+    M290 455C270 330 340 190 512 170C684 190 754 330 734 455C716 565 630 620 512 620C394 620 308 565 290 455Z
+    M370 445C360 360 410 250 512 235C614 250 664 360 654 445C646 515 590 550 512 550C434 550 378 515 370 445Z
+  "/>
+  <path fill="url(#shadowIn)" fill-rule="evenodd" d="
+    M290 455C270 330 340 190 512 170C684 190 754 330 734 455C716 565 630 620 512 620C394 620 308 565 290 455Z
+    M370 445C360 360 410 250 512 235C614 250 664 360 654 445C646 515 590 550 512 550C434 550 378 515 370 445Z
+  "/>
+
+  <!-- drawstring tunnels -->
+  <ellipse cx="430" cy="615" rx="18" ry="14" fill="#3f7809"/>
+  <ellipse cx="594" cy="615" rx="18" ry="14" fill="#3f7809"/>
+
+  <!-- drawstrings -->
+  <path stroke="#8fd63a" stroke-width="10" stroke-linecap="round" d="M430 628C424 690 410 760 402 820"/>
+  <path stroke="#5aa50d" stroke-width="10" stroke-linecap="round" d="M594 628C600 690 614 760 622 820"/>
+  <circle cx="402" cy="828" r="11" fill="#70c810"/>
+  <circle cx="622" cy="828" r="11" fill="#70c810"/>
+
+  <!-- red feather (Robin Hood cue) -->
+  <g transform="translate(680 70) rotate(28)">
+    <path fill="url(#feather)" d="M18 12C48 -18 118 8 148 78C118 58 78 52 42 70C28 48 18 30 18 12Z"/>
+    <path stroke="#f4f4f0" stroke-opacity="0.75" stroke-width="4" stroke-linecap="round" d="M28 28C70 18 110 42 138 78"/>
+    <path stroke="#9e1f16" stroke-opacity="0.55" stroke-width="2" d="M40 40C62 34 88 48 108 66"/>
+    <path stroke="#9e1f16" stroke-opacity="0.45" stroke-width="2" d="M36 52C58 48 82 60 98 76"/>
+  </g>
+</svg>

@@ -1,6 +1,6 @@
 import { FACE } from './hoodSvg'
 
-const SIZE = 1024
+export const SIZE = 1536
 
 export type Transform = {
   x: number
@@ -10,25 +10,28 @@ export type Transform = {
 }
 
 export type ComposeOptions = {
-  photo: HTMLImageElement
+  photo: HTMLImageElement | ImageBitmap
   hood: HTMLImageElement
   eyes?: HTMLImageElement | null
-  /** Moves / scales the uploaded photo inside the face opening */
   transform: Transform
   voidFace?: boolean
+  /** Draw into an existing canvas when provided (avoids alloc thrash on mobile). */
+  target?: HTMLCanvasElement
 }
 
 /** Default: zoom photo so a typical head fills the hood opening. */
-export const DEFAULT_TRANSFORM: Transform = { x: 0, y: -40, scale: 1.15, rotation: 0 }
+export const DEFAULT_TRANSFORM: Transform = { x: 0, y: -60, scale: 1.15, rotation: 0 }
 
 function coverDraw(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  img: HTMLImageElement | ImageBitmap,
   size: number,
   t: Transform,
 ) {
-  const iw = img.naturalWidth || img.width
-  const ih = img.naturalHeight || img.height
+  const iw = 'naturalWidth' in img ? img.naturalWidth || img.width : img.width
+  const ih = 'naturalHeight' in img ? img.naturalHeight || img.height : img.height
+  if (!iw || !ih) return
+
   const base = Math.max(size / iw, size / ih)
   const scale = base * t.scale
   const w = iw * scale
@@ -37,26 +40,38 @@ function coverDraw(
   ctx.save()
   ctx.translate(size / 2 + t.x, size / 2 + t.y)
   ctx.rotate((t.rotation * Math.PI) / 180)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(img, -w / 2, -h / 2, w, h)
   ctx.restore()
 }
 
 /**
- * Brand-style compose:
- * 1) black canvas
- * 2) photo clipped to the face oval (so ears/shoulders don't stick out around the hood)
- * 3) hood overlay with transparent opening
+ * Brand-style compose into `target` or a fresh canvas.
+ * Face is clipped to the hood opening; hood drawn on top with smoothed edges.
  */
 export function composePfp(options: ComposeOptions): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = SIZE
-  canvas.height = SIZE
+  const canvas = options.target ?? document.createElement('canvas')
+  if (canvas.width !== SIZE || canvas.height !== SIZE) {
+    canvas.width = SIZE
+    canvas.height = SIZE
+  }
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas unsupported')
 
+  const scale = SIZE / 1024
+  const cx = FACE.cx * scale
+  const cy = FACE.cy * scale
+  const rx = FACE.rx * scale
+  const ry = FACE.ry * scale
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.clearRect(0, 0, SIZE, SIZE)
   ctx.fillStyle = '#050505'
   ctx.fillRect(0, 0, SIZE, SIZE)
+
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
 
   if (options.voidFace) {
     if (options.eyes) {
@@ -65,7 +80,7 @@ export function composePfp(options: ComposeOptions): HTMLCanvasElement {
   } else {
     ctx.save()
     ctx.beginPath()
-    ctx.ellipse(FACE.cx, FACE.cy, FACE.rx, FACE.ry, 0, 0, Math.PI * 2)
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
     ctx.clip()
     coverDraw(ctx, options.photo, SIZE, options.transform)
     ctx.restore()

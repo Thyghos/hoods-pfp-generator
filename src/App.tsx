@@ -5,11 +5,22 @@ import {
   DEFAULT_TRANSFORM,
   downloadCanvas,
   sharePfp,
+  SIZE,
   type ShareTarget,
   type Transform,
 } from './lib/compose'
 import { buildEyesSvg, buildHoodImage, svgToImage } from './lib/hoodSvg'
 import './App.css'
+
+function clampScale(n: number) {
+  return Math.min(3, Math.max(0.5, n))
+}
+
+function dist(a: { x: number; y: number }, b: { x: number; y: number }) {
+  const dx = a.x - b.x
+  const dy = a.y - b.y
+  return Math.hypot(dx, dy)
+}
 
 export default function App() {
   const [photo, setPhoto] = useState<HTMLImageElement | null>(null)
@@ -27,8 +38,41 @@ export default function App() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const dragStart = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
+
+  const transformRef = useRef(transform)
+  const photoRef = useRef(photo)
+  const hoodRef = useRef(hoodImg)
+  const eyesRef = useRef(eyesImg)
+  const voidRef = useRef(voidFace)
+  const rafRef = useRef(0)
+
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const gesture = useRef<{
+    mode: 'drag' | 'pinch'
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+    startScale: number
+    startDist: number
+  } | null>(null)
+
+  useEffect(() => {
+    transformRef.current = transform
+  }, [transform])
+  useEffect(() => {
+    photoRef.current = photo
+  }, [photo])
+  useEffect(() => {
+    hoodRef.current = hoodImg
+  }, [hoodImg])
+  useEffect(() => {
+    eyesRef.current = eyesImg
+  }, [eyesImg])
+  useEffect(() => {
+    voidRef.current = voidFace
+  }, [voidFace])
 
   useEffect(() => {
     let cancelled = false
@@ -44,97 +88,209 @@ export default function App() {
     svgToImage(buildEyesSvg()).then(setEyesImg)
   }, [])
 
-  const redraw = useCallback(() => {
+  const paint = useCallback(() => {
     const canvas = canvasRef.current
-    if (!canvas || !hoodImg) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const hood = hoodRef.current
+    if (!canvas || !hood) return
 
-    if (!photo && !voidFace) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const photoImg = photoRef.current
+    const voidMode = voidRef.current
+
+    if (!photoImg && !voidMode) {
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      if (canvas.width !== SIZE || canvas.height !== SIZE) {
+        canvas.width = SIZE
+        canvas.height = SIZE
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, SIZE, SIZE)
       ctx.fillStyle = '#050505'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(hoodImg, 0, 0, canvas.width, canvas.height)
+      ctx.fillRect(0, 0, SIZE, SIZE)
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(hood, 0, 0, SIZE, SIZE)
       ctx.fillStyle = 'rgba(244,244,240,0.55)'
-      ctx.font = '600 36px Manrope, sans-serif'
+      ctx.font = `600 ${Math.round(SIZE * 0.035)}px Manrope, sans-serif`
       ctx.textAlign = 'center'
-      ctx.fillText('Drop your PFP here', canvas.width / 2, 400)
+      ctx.fillText('Drop your PFP here', SIZE / 2, SIZE * 0.39)
       return
     }
 
-    const composed = composePfp({
-      photo: photo ?? hoodImg,
-      hood: hoodImg,
-      eyes: eyesImg,
-      transform,
-      voidFace: voidFace || !photo,
+    composePfp({
+      photo: photoImg ?? hood,
+      hood,
+      eyes: eyesRef.current,
+      transform: transformRef.current,
+      voidFace: voidMode || !photoImg,
+      target: canvas,
     })
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.drawImage(composed, 0, 0)
-  }, [photo, hoodImg, eyesImg, transform, voidFace])
+  }, [])
+
+  const schedulePaint = useCallback(() => {
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(paint)
+  }, [paint])
 
   useEffect(() => {
-    redraw()
-  }, [redraw])
+    schedulePaint()
+  }, [photo, hoodImg, eyesImg, transform, voidFace, schedulePaint])
 
-  const onFile = (file: File | undefined) => {
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), [])
+
+  const onFile = async (file: File | undefined) => {
     if (!file) return
-    if (!file.type.startsWith('image/')) {
+    if (!file.type.startsWith('image/') && !file.name.match(/\.(jpe?g|png|webp|heic|heif)$/i)) {
       setError('Upload an image file (PNG, JPG, WEBP).')
       return
     }
     setError('')
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => {
+
+    try {
+      const url = URL.createObjectURL(file)
+      const img = new Image()
+      img.decoding = 'async'
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error('Could not read that image.'))
+        img.src = url
+      })
+      try {
+        await img.decode()
+      } catch {
+        /* decode optional */
+      }
+      URL.revokeObjectURL(url)
       setPhoto(img)
       setPhotoName(file.name)
       setTransform(DEFAULT_TRANSFORM)
+      transformRef.current = DEFAULT_TRANSFORM
       setVoidFace(false)
       setShareNote('')
-      URL.revokeObjectURL(url)
-    }
-    img.onerror = () => {
+    } catch {
       setError('Could not read that image.')
-      URL.revokeObjectURL(url)
     }
-    img.src = url
   }
 
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (!photo || voidFace) return
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-    setDragging(true)
-    dragStart.current = { x: e.clientX, y: e.clientY, tx: transform.x, ty: transform.y }
+  const commitTransform = (next: Transform) => {
+    transformRef.current = next
+    setTransform(next)
+    schedulePaint()
   }
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging || !dragStart.current || !stageRef.current) return
-    const rect = stageRef.current.getBoundingClientRect()
-    const scale = 1024 / rect.width
-    const dx = (e.clientX - dragStart.current.x) * scale
-    const dy = (e.clientY - dragStart.current.y) * scale
-    setTransform((t) => ({
-      ...t,
-      x: dragStart.current!.tx + dx,
-      y: dragStart.current!.ty + dy,
-    }))
-  }
+  // Native listeners so we can preventDefault (stop page zoom / scroll) on mobile.
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
 
-  const onPointerUp = () => {
-    setDragging(false)
-    dragStart.current = null
-  }
+    const onPointerDown = (e: PointerEvent) => {
+      if (!photoRef.current || voidRef.current) return
+      el.setPointerCapture(e.pointerId)
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
 
-  const onWheel = (e: React.WheelEvent) => {
-    if (!photo || voidFace) return
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? -0.04 : 0.04
-    setTransform((t) => ({
-      ...t,
-      scale: Math.min(3, Math.max(0.4, t.scale + delta)),
-    }))
-  }
+      if (pointers.current.size === 1) {
+        setDragging(true)
+        gesture.current = {
+          mode: 'drag',
+          startX: e.clientX,
+          startY: e.clientY,
+          originX: transformRef.current.x,
+          originY: transformRef.current.y,
+          startScale: transformRef.current.scale,
+          startDist: 0,
+        }
+      } else if (pointers.current.size === 2) {
+        const pts = [...pointers.current.values()]
+        gesture.current = {
+          mode: 'pinch',
+          startX: (pts[0].x + pts[1].x) / 2,
+          startY: (pts[0].y + pts[1].y) / 2,
+          originX: transformRef.current.x,
+          originY: transformRef.current.y,
+          startScale: transformRef.current.scale,
+          startDist: dist(pts[0], pts[1]),
+        }
+      }
+    }
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!gesture.current || !photoRef.current || voidRef.current) return
+      if (!pointers.current.has(e.pointerId)) return
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      const g = gesture.current
+      const rect = el.getBoundingClientRect()
+      const toCanvas = SIZE / rect.width
+
+      if (g.mode === 'drag' && pointers.current.size === 1) {
+        const dx = (e.clientX - g.startX) * toCanvas
+        const dy = (e.clientY - g.startY) * toCanvas
+        commitTransform({
+          ...transformRef.current,
+          x: g.originX + dx,
+          y: g.originY + dy,
+        })
+      } else if (pointers.current.size >= 2) {
+        const pts = [...pointers.current.values()]
+        const dNow = dist(pts[0], pts[1])
+        if (!g.startDist) {
+          g.mode = 'pinch'
+          g.startDist = dNow
+          g.startScale = transformRef.current.scale
+          g.originX = transformRef.current.x
+          g.originY = transformRef.current.y
+        }
+        const ratio = dNow / (g.startDist || dNow)
+        commitTransform({
+          ...transformRef.current,
+          scale: clampScale(g.startScale * ratio),
+        })
+      }
+    }
+
+    const endPointer = (e: PointerEvent) => {
+      pointers.current.delete(e.pointerId)
+      if (pointers.current.size === 0) {
+        gesture.current = null
+        setDragging(false)
+      } else if (pointers.current.size === 1) {
+        const pt = [...pointers.current.values()][0]
+        gesture.current = {
+          mode: 'drag',
+          startX: pt.x,
+          startY: pt.y,
+          originX: transformRef.current.x,
+          originY: transformRef.current.y,
+          startScale: transformRef.current.scale,
+          startDist: 0,
+        }
+      }
+    }
+
+    const onWheel = (e: WheelEvent) => {
+      if (!photoRef.current || voidRef.current) return
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? -0.05 : 0.05
+      commitTransform({
+        ...transformRef.current,
+        scale: clampScale(transformRef.current.scale + delta),
+      })
+    }
+
+    el.addEventListener('pointerdown', onPointerDown)
+    el.addEventListener('pointermove', onPointerMove)
+    el.addEventListener('pointerup', endPointer)
+    el.addEventListener('pointercancel', endPointer)
+    el.addEventListener('wheel', onWheel, { passive: false })
+
+    return () => {
+      el.removeEventListener('pointerdown', onPointerDown)
+      el.removeEventListener('pointermove', onPointerMove)
+      el.removeEventListener('pointerup', endPointer)
+      el.removeEventListener('pointercancel', endPointer)
+      el.removeEventListener('wheel', onWheel)
+    }
+  }, [schedulePaint])
 
   const buildCanvas = () => {
     if (!hoodImg || (!photo && !voidFace)) {
@@ -146,7 +302,7 @@ export default function App() {
       photo: photo ?? hoodImg,
       hood: hoodImg,
       eyes: eyesImg,
-      transform,
+      transform: transformRef.current,
       voidFace: voidFace || !photo,
     })
   }
@@ -182,7 +338,7 @@ export default function App() {
   const hint = useMemo(() => {
     if (!photo) return 'Upload a Telegram, Discord, or X profile picture.'
     if (voidFace) return 'Mascot mode — black void + glowing eyes.'
-    return 'Drag to position your face in the hood · scroll to scale.'
+    return 'Drag with one finger · pinch to zoom · or use the sliders.'
   }, [photo, voidFace])
 
   return (
@@ -270,13 +426,13 @@ export default function App() {
                 <span>Zoom</span>
                 <input
                   type="range"
-                  min={0.6}
-                  max={2.8}
+                  min={0.5}
+                  max={3}
                   step={0.01}
                   value={transform.scale}
                   disabled={!canEditPhoto}
                   onChange={(e) =>
-                    setTransform((t) => ({ ...t, scale: Number(e.target.value) }))
+                    commitTransform({ ...transformRef.current, scale: Number(e.target.value) })
                   }
                 />
               </label>
@@ -290,7 +446,10 @@ export default function App() {
                   value={transform.rotation}
                   disabled={!canEditPhoto}
                   onChange={(e) =>
-                    setTransform((t) => ({ ...t, rotation: Number(e.target.value) }))
+                    commitTransform({
+                      ...transformRef.current,
+                      rotation: Number(e.target.value),
+                    })
                   }
                 />
               </label>
@@ -301,7 +460,7 @@ export default function App() {
                 className="btn ghost"
                 type="button"
                 disabled={!photo}
-                onClick={() => setTransform(DEFAULT_TRANSFORM)}
+                onClick={() => commitTransform(DEFAULT_TRANSFORM)}
               >
                 Reset
               </button>
@@ -338,18 +497,13 @@ export default function App() {
           <div
             ref={stageRef}
             className={`stage ${dragging ? 'dragging' : ''} ${photo && !voidFace ? 'editable' : ''}`}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            onWheel={onWheel}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault()
               onFile(e.dataTransfer.files?.[0])
             }}
           >
-            <canvas ref={canvasRef} width={1024} height={1024} aria-label="Hooded PFP preview" />
+            <canvas ref={canvasRef} width={SIZE} height={SIZE} aria-label="Hooded PFP preview" />
           </div>
           <p className="hint">{hint}</p>
         </section>
